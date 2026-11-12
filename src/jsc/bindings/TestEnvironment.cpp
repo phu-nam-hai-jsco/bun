@@ -3,8 +3,11 @@
 #include "TestEnvironment.h"
 
 #include "BunClientData.h"
+#include "BunProcess.h"
 #include "ConsoleObject.h"
+#include "GlobalEventScope.h"
 #include "InternalModuleRegistry.h"
+#include "Performance.h"
 #include "ScriptExecutionContext.h"
 #include "ZigGlobalObject.h"
 #include <JavaScriptCore/AOTRealmStartup.h>
@@ -23,6 +26,16 @@ extern "C" [[ZIG_EXPORT(zero_is_throw)]] JSC::EncodedJSValue Bun__TestGlobals__g
     auto& vm = JSC::getVM(globalObject);
     auto scope = DECLARE_THROW_SCOPE(vm);
     RELEASE_AND_RETURN(scope, JSC::JSValue::encode(Bun::DeclaredModuleLoad::requireForCommandLine(globalObject, Bun::InternalModuleRegistry::InternalTestGlobals)));
+}
+
+// `bun test --isolate=modules`: removes what the last test file left on the global object where no property shows it.
+extern "C" void Bun__TestGlobals__resetNativeState(Zig::GlobalObject* globalObject)
+{
+    // Nothing of Bun's own listens on either in the main thread.
+    globalObject->globalEventScope->removeAllEventListeners();
+    if (auto* performance = globalObject->existingPerformance())
+        performance->removeAllEventListeners();
+    globalObject->processObject()->clearUncaughtExceptionCaptureCallback();
 }
 
 namespace Bun {
